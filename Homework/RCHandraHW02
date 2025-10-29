@@ -9,5 +9,79 @@ output: html_document
 This is the initial R Markdown notebook for Homework 02. The document title/header is "RChandraHW02" as requested. Compile this file to produce HW_02.html for submission on the main branch.
 
 ```{r}
-# Example code cell
-print("Hello, RChandraHW02")
+## Task 1 - NRI Data Cleaning
+
+__1. Import the NRI data. Ensure that the [FIPS code](https://en.wikipedia.org/wiki/Federal_Information_Processing_Standard_state_code) variable ('STCOFIPS') is correctly identified as a string / character variable. Otherwise, the leading zeros will be removed.__
+
+```
+# your code here
+```
+
+__2. Subset the NRI data to include only the 5-digit state/county FIPS code and all colums ending with '\_AFREQ' and '\_RISKR'. Each of these columns represents a different hazard type.__
+
+```
+# your code here
+```
+__3. Create a table / dataframe that, for each hazard type, shows the number of missing values in the '\_AFREQ' and '\_RISKR' columns.__
+```
+# your code here
+```
+__4. Create a new column in the original data table indicating whether or not 'AVLN_AFREQ' is missing or observed. Show the cross-tabulation of the 'AVLN_AFREQ' missingness and 'AVLN_RISKR' columns (including missing values). What do you observe?__
+```
+# your code here
+```
+__5. Assuming that a risk that is "not applicable" to a county has an annualized frequency of 0, impute the relevant missing values in the '\_AFREQ' columns with 0.__
+```
+# your code here
+```
+
+
+## Task 2 - SVI Data Cleaning
+
+__1. Import the SVI data. Ensure that the FIPS code is correctly identified as a string / character variable. Otherwise, the leading zeros will be removed.__
+
+__2. Subset the SVI data to include only the following columns:__
+`ST, STATE, ST_ABBR, STCNTY, COUNTY, FIPS, LOCATION, AREA_SQMI, E_TOTPOP, EP_POV150, EP_UNEMP, EP_HBURD, EP_NOHSDP, EP_UNINSUR, EP_AGE65, EP_AGE17, EP_DISABL, EP_SNGPNT, EP_LIMENG, EP_MINRTY, EP_MUNIT, EP_MOBILE, EP_CROWD, EP_NOVEH, EP_GROUPQ, EP_NOINT, EP_AFAM, EP_HISP, EP_ASIAN, EP_AIAN, EP_NHPI, EP_TWOMORE, EP_OTHERRACE`
+```
+# your code here
+```
+__2. Create a table / dataframe that shows the number of missing values in each column.
+(Hint: if you wrote a function for Task 1, you can reuse it here.)__
+
+```
+# your code here
+```
+
+## Task 3 - Data Merging
+__1. Identify any FIPS codes that are present in the NRI data but not in the SVI data and vice versa. Describe any discrepancies and possible causes? What to these discrepancies, if any, mean for interpreting results based on the merged dataset moving forward?__
+```
+# your code here
+```
+__2. Merge the NRI and SVI data on the FIPS code. Use an outer join to keep all counties in the final dataset.__
+```
+# your code here
+```
+__3. Create a table / dataframe that shows the number of missing values in each column of the merged dataset.__
+
+```
+# your code here
+```
+
+## Task 4 - Data Analysis
+
+__1. For each numerical variable in the merged dataset, plot a histogram showing the distribution of values.
+(Hint: write a function to make the histogram for a single variable, then use a loop or apply function to make the histograms for all numerical variables.)__
+
+```
+# your code here
+```
+
+## Task 5 - Save Data
+
+__1. Create a 'processed' folder within the 'data' folder.__
+
+__2. Save the merged data file to the 'processed' folder.__
+
+```
+# your code here
+```
