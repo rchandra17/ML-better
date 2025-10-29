@@ -1,0 +1,13 @@
+---
+title: "RChandraHW02"
+author: "rchandra17"
+output: html_document
+---
+
+# HW_02
+
+This is the initial R Markdown notebook for Homework 02. The document title/header is "RChandraHW02" as requested. Compile this file to produce HW_02.html for submission on the main branch.
+
+```{r}
+# Example code cell
+print("Hello, RChandraHW02")
