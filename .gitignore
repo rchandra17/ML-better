@@ -1,0 +1,10 @@
+cat > .gitignore <<'EOF'
+data/*
+!data/.gitkeep
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+EOF
+
+git add .gitignore
+git commit -m "Add .gitignore to ignore raw data"
+git push
