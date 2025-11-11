@@ -72,31 +72,50 @@ table(nri_sub$AVLN_AFREQ_missing, is.na(nri_sub$AVLN_RISKR), useNA = "always")
 
 __1. Import the SVI data. Ensure that the FIPS code is correctly identified as a string / character variable. Otherwise, the leading zeros will be removed.__
 
+```
+svi <- read_csv("raw data/SVI_2022_US_county.csv",
+                col_types = cols(FIPS = col_character()))
+```
+
 __2. Subset the SVI data to include only the following columns:__
 `ST, STATE, ST_ABBR, STCNTY, COUNTY, FIPS, LOCATION, AREA_SQMI, E_TOTPOP, EP_POV150, EP_UNEMP, EP_HBURD, EP_NOHSDP, EP_UNINSUR, EP_AGE65, EP_AGE17, EP_DISABL, EP_SNGPNT, EP_LIMENG, EP_MINRTY, EP_MUNIT, EP_MOBILE, EP_CROWD, EP_NOVEH, EP_GROUPQ, EP_NOINT, EP_AFAM, EP_HISP, EP_ASIAN, EP_AIAN, EP_NHPI, EP_TWOMORE, EP_OTHERRACE`
-```
-# your code here
-```
-__2. Create a table / dataframe that shows the number of missing values in each column.
-(Hint: if you wrote a function for Task 1, you can reuse it here.)__
 
 ```
-# your code here
+svi_sub <- svi %>%
+  select(ST, STATE, ST_ABBR, STCNTY, COUNTY, FIPS, LOCATION, AREA_SQMI,
+         E_TOTPOP, EP_POV150, EP_UNEMP, EP_HBURD, EP_NOHSDP, EP_UNINSUR,
+         EP_AGE65, EP_AGE17, EP_DISABL, EP_SNGPNT, EP_LIMENG, EP_MINRTY,
+         EP_MUNIT, EP_MOBILE, EP_CROWD, EP_NOVEH, EP_GROUPQ, EP_NOINT,
+         EP_AFAM, EP_HISP, EP_ASIAN, EP_AIAN, EP_NHPI, EP_TWOMORE, EP_OTHERRACE)
+```
+
+__3. Create a table / dataframe that shows the number of missing values in each column.
+(Hint: if you wrote a function for Task 1, you can reuse it here.) __
+
+```
+missing_summary_svi <- count_missing(svi_sub)
+head(missing_summary_svi)
 ```
 
 ## Task 3 - Data Merging
-__1. Identify any FIPS codes that are present in the NRI data but not in the SVI data and vice versa. Describe any discrepancies and possible causes? What to these discrepancies, if any, mean for interpreting results based on the merged dataset moving forward?__
+__1. Identify any FIPS codes that are present in the NRI data but not in the SVI data and vice versa. Describe any discrepancies and possible causes? What to these discrepancies, if any, mean for interpreting results based on the merged dataset moving forward? My Answer: Most counties appear in both datasets, with a few FIPS codes unique to each, likely U.S. territories or special regions, leading to missing values during merging. The SVI dataset is complete with no missing values amongst the 33 selected variables. There are 96 FIPS codes in NRI not in SVI, and 9 in SVI not in NRI, likely due to territories or special areas. The merged dataset has 3,240 records and 70 columns, with 9 missing entries linked to unmatched FIPS codes, indicating most counties are included with some missing data to address later. __
 ```
-# your code here
+nri_not_svi <- setdiff(nri_sub$STCOFIPS, svi_sub$FIPS)
+svi_not_nri <- setdiff(svi_sub$FIPS, nri_sub$STCOFIPS)
+# Quick counts 96 and 9
+length(nri_not_svi)    # how many FIPS in NRI but not in SVI
+length(svi_not_nri)    # how many FIPS in SVI but not in NRI
 ```
+
 __2. Merge the NRI and SVI data on the FIPS code. Use an outer join to keep all counties in the final dataset.__
 ```
-# your code here
+merged_data <- full_join(nri_sub, svi_sub, by = c("STCOFIPS" = "FIPS"))
 ```
 __3. Create a table / dataframe that shows the number of missing values in each column of the merged dataset.__
 
 ```
-# your code here
+missing_summary_merged <- count_missing(merged_data)
+head(missing_summary_merged)
 ```
 
 ## Task 4 - Data Analysis
@@ -105,7 +124,46 @@ __1. For each numerical variable in the merged dataset, plot a histogram showing
 (Hint: write a function to make the histogram for a single variable, then use a loop or apply function to make the histograms for all numerical variables.)__
 
 ```
-# your code here
+library(ggplot2)
+numeric_vars <- merged_data %>%
+  select(where(is.numeric))
+  
+  make_hist <- function(data, var_name) {
+  ggplot(data, aes(x = .data[[var_name]])) +
+    geom_histogram(bins = 30, fill = "blue", color = "white") +
+    theme_minimal() +
+    labs(
+      title = paste("Distribution of", var_name),
+      x = var_name,
+      y = "Frequency"
+    )
+}
+
+for (v in names(numeric_vars)[1:5]) {
+  print(make_hist(merged_data, v))
+}
+
+library(ggplot2)
+numeric_vars <- merged_data %>% select(where(is.numeric))
+if (!dir.exists("plots")) dir.create("plots")
+make_hist <- function(data, var_name) {
+  ggplot(data, aes(x = .data[[var_name]])) +
+    geom_histogram(bins = 30, fill = "blue", color = "white") +
+    theme_minimal() +
+    labs(
+      title = paste("Distribution of", var_name),
+      x = var_name,
+      y = "Frequency"
+    )
+}
+for (v in names(numeric_vars)) {
+p <- make_hist(merged_data, v)
+ggsave(
+    filename = paste0("plots/hist_", v, ".png"),
+    plot = p,
+    width = 6, height = 4, dpi = 300
+  )
+
 ```
 
 ## Task 5 - Save Data
@@ -115,5 +173,7 @@ __1. Create a 'processed' folder within the 'data' folder.__
 __2. Save the merged data file to the 'processed' folder.__
 
 ```
-# your code here
+if (!dir.exists("data")) dir.create("data")
+if (!dir.exists("data/processed")) dir.create("data/processed")
+write_csv(merged_data, "data/processed/merged_NRI_SVI.csv")
 ```
