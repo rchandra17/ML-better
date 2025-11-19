@@ -14,3 +14,6 @@ current_date_variable <- Sys.Date()
 ```
 # The Date
 Today's date is `r current_date_variable`
+```{r}
+print(current_date_variable)
+```
