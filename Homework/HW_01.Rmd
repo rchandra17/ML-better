@@ -1,0 +1,26 @@
+---
+title: "HW_01"
+author: "RChandra"
+date: "2025-12-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Question 1: Use a programming language of your choice to save today's date to a variable. Then, include the date in the text below the code block.
+
+# Code:
+
+```{r}
+current_date_variable <- Sys.Date()
+```
+
+# The Date
+
+```{r}
+print(current_date_variable)
+```
+
+Today's date is `r current_date_variable`
