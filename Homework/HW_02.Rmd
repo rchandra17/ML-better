@@ -1,0 +1,188 @@
+---
+title: "HW_02"
+author: "RChandra"
+date: "2025-12-16"
+output: html_document
+---
+
+This is the R Markdown notebook for Homework 02. The document title/header is "HW_02" as requested. Compile this file to produce HW_02.html for submission on the main branch.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(stringr)
+```
+
+1.  Import the NRI data. Ensure that the [FIPS code](https://en.wikipedia.org/wiki/Federal_Information_Processing_Standard_state_code) variable ('STCOFIPS') is correctly identified as a string / character variable. Otherwise, the leading zeros will be removed.
+
+```{r}
+nri <- read_csv("Raw Data/NRI_Table_Counties.csv",
+                col_types = cols(STCOFIPS = col_character()))
+```
+
+2.  Subset the NRI data to include only the 5-digit state/county FIPS code and all columns ending with '\_AFREQ' and '\_RISKR'. Each of these columns represents a different hazard type.
+
+```{r}
+View(nri)
+  nri_sub <- nri %>% 
+   select(STCOFIPS, ends_with("_AFREQ"), ends_with("_RISKR"))
+    afreq_riskr_cols <- grep("(_AFREQ|_RISKR)$", names(nri_sub), value = TRUE)
+  nri_sub <- nri_sub %>%
+    mutate(across(all_of(afreq_riskr_cols), ~as.numeric(.)))
+```
+
+3.  Create a table / dataframe that, for each hazard type, shows the number of missing values in the '\_AFREQ' and '\_RISKR' columns.
+
+```{r}
+count_missing <- function(df) {
+  tibble(variable = names(df),
+         n_missing = colSums(is.na(df)))}
+```
+
+4.  Create a new column in the original data table indicating whether or not 'AVLN_AFREQ' is missing or observed. Show the cross-tabulation of the 'AVLN_AFREQ' missingness and 'AVLN_RISKR' columns (including missing values). What do you observe? My Answer: I observe that the table shows that whenever AVLN_AFREQ is missing, AVLN_RISKR is also missing for the same counties. This suggests those counties do not experience avalanche risk, so the missing values probably mean the variable is “not applicable.
+
+```{r}
+missing_summary_nri <- count_missing(nri_sub)
+head(missing_summary_nri)
+library(stringr)
+hazard_summary <- nri_sub %>%
+  pivot_longer(cols = -STCOFIPS,
+               names_to = "variable",
+               values_to = "value") %>%
+  mutate(hazard = str_remove(variable, "_(AFREQ|RISKR)$"),
+         measure = str_extract(variable, "(AFREQ|RISKR)")) %>%
+  group_by(hazard, measure) %>%
+  summarise(n_missing = sum(is.na(value)), .groups = "drop")
+```
+
+5.  Assuming that a risk that is "not applicable" to a county has an annualized frequency of 0, impute the relevant missing values in the '\_AFREQ' columns with 0.
+
+```{r}
+head(hazard_summary)
+nri_sub <- nri_sub %>%
+  mutate(AVLN_AFREQ_missing = is.na(AVLN_AFREQ))
+table(nri_sub$AVLN_AFREQ_missing, is.na(nri_sub$AVLN_RISKR), useNA = "always")
+```
+
+## Task 2 - SVI Data Cleaning
+
+1.  Import the SVI data. Ensure that the FIPS code is correctly identified as a string / character variable. Otherwise, the leading zeros will be removed.
+
+```{r}
+svi <- read_csv("raw data/SVI_2022_US_county.csv",
+                col_types = cols(FIPS = col_character()))
+```
+
+2.  Subset the SVI data to include only the following columns:\_\_ `ST, STATE, ST_ABBR, STCNTY, COUNTY, FIPS, LOCATION, AREA_SQMI, E_TOTPOP, EP_POV150, EP_UNEMP, EP_HBURD, EP_NOHSDP, EP_UNINSUR, EP_AGE65, EP_AGE17, EP_DISABL, EP_SNGPNT, EP_LIMENG, EP_MINRTY, EP_MUNIT, EP_MOBILE, EP_CROWD, EP_NOVEH, EP_GROUPQ, EP_NOINT, EP_AFAM, EP_HISP, EP_ASIAN, EP_AIAN, EP_NHPI, EP_TWOMORE, EP_OTHERRACE`
+
+```{r}
+svi_sub <- svi %>%
+  select(ST, STATE, ST_ABBR, STCNTY, COUNTY, FIPS, LOCATION, AREA_SQMI,
+         E_TOTPOP, EP_POV150, EP_UNEMP, EP_HBURD, EP_NOHSDP, EP_UNINSUR,
+         EP_AGE65, EP_AGE17, EP_DISABL, EP_SNGPNT, EP_LIMENG, EP_MINRTY,
+         EP_MUNIT, EP_MOBILE, EP_CROWD, EP_NOVEH, EP_GROUPQ, EP_NOINT,
+         EP_AFAM, EP_HISP, EP_ASIAN, EP_AIAN, EP_NHPI, EP_TWOMORE, EP_OTHERRACE)
+```
+
+3.  Create a table / dataframe that shows the number of missing values in each column. (Hint: if you wrote a function for Task 1, you can reuse it here.)
+
+```{r}
+missing_summary_svi <- count_missing(svi_sub)
+head(missing_summary_svi)
+```
+
+## Task 3 - Data Merging
+
+1.  Identify any FIPS codes that are present in the NRI data but not in the SVI data and vice versa. Describe any discrepancies and possible causes? What to these discrepancies, if any, mean for interpreting results based on the merged dataset moving forward? My Answer: Most counties appear in both datasets, with a few FIPS codes unique to each, likely U.S. territories or special regions, leading to missing values during merging. The SVI dataset is complete with no missing values amongst the 33 selected variables. There are 96 FIPS codes in NRI not in SVI, and 9 in SVI not in NRI, likely due to territories or special areas. The merged dataset has 3,240 records and 70 columns, with 9 missing entries linked to unmatched FIPS codes, indicating most counties are included with some missing data to address later.
+
+```{r}
+nri_not_svi <- setdiff(nri_sub$STCOFIPS, svi_sub$FIPS)
+svi_not_nri <- setdiff(svi_sub$FIPS, nri_sub$STCOFIPS)
+```
+
+# Quick counts 96 and 9
+
+```{r}
+length(nri_not_svi)
+length(svi_not_nri)
+```
+
+2.  Merge the NRI and SVI data on the FIPS code. Use an outer join to keep all counties in the final dataset.
+
+```{r}
+merged_data <- full_join(nri_sub, svi_sub, by = c("STCOFIPS" = "FIPS"))
+```
+
+3.  Create a table / dataframe that shows the number of missing values in each column of the merged dataset.
+
+```{r}
+missing_summary_merged <- count_missing(merged_data)
+head(missing_summary_merged)
+```
+
+## Task 4 - Data Analysis
+
+1.  For each numerical variable in the merged dataset, plot a histogram showing the distribution of values. (Hint: write a function to make the histogram for a single variable, then use a loop or apply function to make the histograms for all numerical variables.)
+
+```{r}
+library(ggplot2)
+numeric_vars <- merged_data %>%
+  select(where(is.numeric))
+  
+  make_hist <- function(data, var_name) {
+  ggplot(data, aes(x = .data[[var_name]])) +
+    geom_histogram(bins = 30, fill = "blue", color = "white") +
+    theme_minimal() +
+    labs(
+      title = paste("Distribution of", var_name),
+      x = var_name,
+      y = "Frequency"
+    )
+}
+
+for (v in names(numeric_vars)[1:5]) {
+  print(make_hist(merged_data, v))
+}
+
+library(ggplot2)
+numeric_vars <- merged_data %>% select(where(is.numeric))
+if (!dir.exists("plots")) dir.create("plots")
+make_hist <- function(data, var_name) {
+  ggplot(data, aes(x = .data[[var_name]])) +
+    geom_histogram(bins = 30, fill = "blue", color = "white") +
+    theme_minimal() +
+    labs(
+      title = paste("Distribution of", var_name),
+      x = var_name,
+      y = "Frequency"
+    )
+}
+for (v in names(numeric_vars)) {
+p <- make_hist(merged_data, v)
+ggsave(
+    filename = paste0("plots/hist_", v, ".png"),
+    plot = p,
+    width = 6, height = 4, dpi = 300
+  )}
+```
+
+## Task 5 - Save Data
+
+1.  Create a 'processed' folder within the 'data' folder.
+
+```{r}
+if (!dir.exists("data")) dir.create("data")
+if (!dir.exists("data/processed")) dir.create("data/processed")
+```
+
+2.  Save the merged data file to the 'processed' folder.
+
+```{r}
+write_csv(merged_data, "data/processed/merged_NRI_SVI.csv")
+```
