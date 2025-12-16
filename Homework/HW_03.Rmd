@@ -1,0 +1,248 @@
+---
+title: "HW_03"
+author: "RChandra"
+date: "2025-12-16"
+output: html_document
+---
+
+## Homework 3 - Principal Component Analysis Section
+
+*Background:* The CDC Social Vulnerability Index (SVI) takes multiple different population-level inputs (e.g., % of the population living in poverty, % of the population without health insurance) to identify particularly vulnerable counties. While the CDC SVI scores rely on adding up the percentiles of various characteristics, there are alternative indexes (e.g., [University of South Carolina SoVI index](https://sc.edu/study/colleges_schools/artsandsciences/centers_and_institutes/hvri/data_and_resources/sovi/index.php)) that use methods like PCA. Here, we are going to use the CDC SVI data to create an alternative index based on PCA.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+**Step One:** Load the data
+
+```{r}
+library(readr)
+merged_NRI_SVI <- read_csv("data/processed/merged_NRI_SVI.csv")
+View(merged_NRI_SVI)
+```
+
+**Step Two:** Separate out the variables listed in the question and create a new dataset out of them.
+
+```{r}
+svi_vars <- c("EP_POV150", "EP_UNEMP", "EP_HBURD", "EP_NOHSDP", "EP_UNINSUR",
+              "EP_AGE65", "EP_AGE17", "EP_DISABL", "EP_SNGPNT", "EP_LIMENG",
+              "EP_MINRTY", "EP_MUNIT", "EP_MOBILE", "EP_CROWD", "EP_NOVEH",
+              "EP_GROUPQ", "EP_NOINT")
+  svi_data_complete <- merged_NRI_SVI[rowSums(is.na(merged_NRI_SVI[, svi_vars])) != length(svi_vars), ]
+  svi_numeric <- svi_data_complete[, svi_vars]
+  removed_rows <- nrow(merged_NRI_SVI) - nrow(svi_data_complete)
+  cat("Number of rows removed:", removed_rows, "\n")
+```
+
+The summary output shows that each of the 17 SVI variables has exactly 96 missing values. This indicates that the missingness is concentrated in the same set of rows rather than being scattered throughout the dataset. In other words, there are 96 observations (rows) where all SVI variables are missing, while the remaining rows are complete. Yay! We can see that we deleted 96 rows which is good because it has removed the rows which contain the 96 missing values for each observation. Because PCA cannot handle missing data and these rows contained no information for any SVI variable, I chose to remove the rows entirely rather than impute values. Imputation would not be meaningful in this case since there are no observed values in those rows to inform an estimate. Removing these rows preserves the integrity of the remaining data and ensures that PCA can be performed on a complete dataset.
+
+**Step Three:** Perform Principal Component analysis using prcomp() and standardize the variables to have mean 0 and a standard deviation of 1.
+
+```{r}
+svi_pca <- prcomp(svi_numeric, center = TRUE, scale. = TRUE)
+```
+
+Summarize:
+
+```{r}
+summary(svi_pca)
+```
+
+View the loadings:
+
+```{r}
+svi_pca$rotation
+```
+
+# Plotting the loadings
+
+**Step One:** load the following packages:
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+```
+
+**Step Two:** Next, extract the eigenvectors
+
+```{r}
+loadings_df <- as.data.frame(svi_pca$rotation[, 1:3])
+loadings_df$Variable <- rownames(loadings_df)
+```
+
+**Step Three:** Lastly, reshape the eigenvectors for plotting and plot the first three Principal Components.
+
+```{r}
+loadings_long <- loadings_df %>%
+  pivot_longer(cols = starts_with("PC"),
+               names_to = "Principal_Component",
+               values_to = "Loading")
+ggplot(loadings_long, aes(x = Variable, y = Loading, fill = Principal_Component)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Loadings for the First Three Principal Components",
+       x = "SVI Variable",
+       y = "Loading Value")
+```
+
+**My Description:** The loadings plot shows that the first principal component (PC1) is dominated by variables related to socioeconomic disadvantage (e.g., poverty, unemployment, minority status, and single-parent households). This component can be interpreted as a general measure of social vulnerability. The second component (PC2) contrasts areas with higher disability and mobile-home populations against those with more multi-unit housing and younger populations, suggesting a rural–urban dimension.Lastly, the third component (PC3) appears to capture variation related to family and household composition, distinguishing areas with more children and uninsured individuals from those with higher housing burden and group quarters populations.
+
+# Determining the minimum number of Principal Components needed:
+
+People often use PCA in downstream analyses (e.g., regression).When doing this, they need to choose the number of principal components to use in the analysis. There are several different ways to determine the number of principal components to retain. One common method is to retain principal components that explain a certain percentage of the variance in the data.
+
+**Step One:** Create string variables for the proportion of variance explained by each component and the cumulative proportion of variance explained by the components.
+
+```{r}
+var_explained <- summary(svi_pca)$importance[2, ]
+cum_var_explained <- summary(svi_pca)$importance[3, ]
+```
+
+**Step Two:** Find how many PCs are needed to reach 80% and 90% variance.
+
+```{r}
+pc_80 <- min(which(cum_var_explained >= 0.80))
+pc_90 <- min(which(cum_var_explained >= 0.90))
+cat("Number of PCs to explain at least 80% variance:", pc_80, "\n")
+cat("Number of PCs to explain at least 90% variance:", pc_90, "\n")
+```
+
+a.  How many principal components are needed to explain 80% of the variance in the data? *My Answer:* At least 7.
+b.  How many principal components are needed to explain 90% of the variance in the data? *My Answer:* At least 11.
+
+# Scree Plot
+
+An alternative approach is to plot the eigenvalues of the principal components and retain the components that are above the "elbow" in the plot. In other words the eigenvalues that are substantially larger than the rest. **Step One:** Create a [scree plot](https://en.wikipedia.org/wiki/Scree_plot) of the eigenvalues of the principal components.
+
+```{r}
+library(ggplot2)
+eigenvalues <- svi_pca$sdev^2
+scree_df <- data.frame(
+  PC = 1:length(eigenvalues),
+  Eigenvalue = eigenvalues
+)
+# The Plot
+ggplot(scree_df, aes(x = PC, y = Eigenvalue)) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Scree Plot of PCA on SVI Variables",
+       x = "Principal Component",
+       y = "Eigenvalue (Variance Explained)")
+```
+
+a.  How many principal components should be retained based on the scree plot? *My Answer:* Thee scree plot shows a noticeable “elbow” at the fifth principal component, after which the eigenvalues begin to level off. This suggests that the first five principal components capture the majority of the meaningful variance in the data, while additional components contribute relatively little new information. Therefore, based on the scree plot criterion, I would retain five principal components for further analysis.
+
+**Step Two:** Plot the first principal component score on a map of the US counties.(First re-attach the missing identifying variables)
+
+```{r}
+svi_data_complete$FIPS <- sprintf("%05d", as.numeric(svi_data_complete$STCOFIPS))
+head(svi_data_complete$FIPS)
+pca_scores <- as.data.frame(svi_pca$x)
+pca_scores$FIPS <- svi_data_complete$FIPS
+```
+
+**Step Three:** Load county boundaries packages
+
+```{r}
+library(tigris)
+library(sf)
+library(dplyr)
+library(ggplot2)
+```
+
+**Step Four:** Load county shapefile and set cb = TRUE for simplified boundaries.
+
+```{r}
+counties_sf <- counties(cb = TRUE, year = 2022)
+```
+
+**Step Five:** Join PCA scores to county shapefile by FIPS/GEOID
+
+```{r}
+counties_pca <- counties_sf %>%
+  left_join(pca_scores, by = c("GEOID" = "FIPS"))
+```
+
+# The Plot
+
+```{r}
+ggplot(counties_pca) +
+  geom_sf(aes(fill = PC1), color = NA) +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
+  labs(title = "Principal Component 1 (SVI)",
+       fill = "PC1 Score") +
+  theme_minimal()
+```
+
+*Briefly describe any spatial patterns you see.*
+  The first principal component (PC1) was mapped to visualize spatial patterns in social vulnerability across U.S. counties. Higher PC1 scores indicate counties with greater combined socioeconomic and demographic vulnerability.
+# Cross-validation
+**Step One:** Load libraries and set up reproducibility and parallelization
+```{r}
+library(parallel)
+set.seed(1234)
+```
+**Step Two:** Define a cross‑validation function for PCA by splitting the data into training and test sets, fitting the PCA on the test set, reconstructing the test set using the first k components, and computing the mean squared error.
+```{r}
+pca_cv_error <- function(data, k, nfolds = 5) {
+  data <- as.matrix(data)  # ensure numeric matrix
+  n <- nrow(data)
+  fold_ids <- sample(rep(1:nfolds, length.out = n))
+  errors <- numeric(nfolds)
+  
+  for (fold in 1:nfolds) {
+    train <- data[fold_ids != fold, , drop = FALSE]
+    test  <- data[fold_ids == fold, , drop = FALSE]
+    
+    # Fit PCA on training data
+    pca_train <- prcomp(train, center = TRUE, scale. = TRUE)
+    
+    # Center and scale test data using training parameters
+    test_centered <- scale(test, center = pca_train$center, scale = pca_train$scale)
+    
+    # Project test data onto first k components
+    test_proj <- test_centered %*% pca_train$rotation[, 1:k]
+    
+    # Reconstruct test data from k components
+    test_recon <- test_proj %*% t(pca_train$rotation[, 1:k])
+    test_recon <- sweep(test_recon, 2, pca_train$center, "+")
+    
+    # Compute mean squared reconstruction error
+    diff <- as.numeric(test - test_recon)
+    errors[fold] <- mean(diff^2, na.rm = TRUE)
+  }
+  
+  mean(errors)
+}
+```
+**Step Three:** Compute cross‑validation error for 1–17 components
+
+```{r}
+data_for_pca <- data_for_pca %>%
+  mutate(across(everything(), as.numeric)) %>%
+  na.omit()
+str(data_for_pca)
+```
+
+```{r}
+num_cores <- detectCores() - 1
+cv_errors <- sapply(1:17, function(k) pca_cv_error(data_for_pca, k))
+cv_errors <- unlist(cv_errors)
+
+```
+**Step Four:** Plot and interpret
+```{r}
+plot(1:17, cv_errors, type = "b", pch = 19,
+     xlab = "Number of Principal Components",
+     ylab = "Cross-Validation Error",
+     main = "PCA Cross-Validation Error")
+
+optimal_k <- which.min(cv_errors)
+cat("Optimal number of principal components based on cross-validation:", optimal_k, "\n")
+```
+Thus, the optimal number of principal components based on cross-validation is 17.
+
