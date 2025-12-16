@@ -1,0 +1,9 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+data/*
+Homework/Raw Data/*
+!data/.gitkeep
+!data/raw/.gitkeep
+!data/processed/.gitkeep

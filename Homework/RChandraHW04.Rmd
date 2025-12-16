@@ -1,0 +1,315 @@
+---
+title: "RChandraHW04"
+author: "RChandra"
+date: "2025-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(caret)
+```
+
+Name: Raagini Chandra
+
+# Preparation
+
+## 1. Load the data:
+
+```{r}
+svidata <- read_csv("Processed Data/svi_covid.csv")
+predictor_vars <- c("EP_POV150", "EP_UNEMP", "EP_HBURD", "EP_NOHSDP", "EP_UNINSUR",
+  "EP_AGE65", "EP_AGE17", "EP_DISABL", "EP_SNGPNT", "EP_LIMENG",
+  "EP_MINRTY", "EP_MUNIT", "EP_MOBILE", "EP_CROWD", "EP_NOVEH",
+  "EP_GROUPQ", "EP_NOINT")
+```
+
+## 2. Write the following functions:
+
+1.  A function that fits a regression tree to data. The function should take as input the data, the outcome variable, the predictor variables, and the maximum depth of the tree. The function should return the fitted tree. *Note: Many packages have functions that penalize the complexity of the tree to avoid over-fitting. You should make sure that the function you write does not use any penalization for the complexity of the tree.*
+
+```{r}
+fit_tree <- function(data, outcome, predictors, maxdepth) {
+   formula <- as.formula(paste(outcome, "~", paste(predictors, collapse = "+")))
+ tree_model <- rpart(
+    formula,
+    data = data,                   
+    method = "anova",
+    control = rpart.control(cp = 0, 
+                            maxdepth = maxdepth)
+  )
+
+  return(tree_model)
+}
+```
+
+Test the model:
+
+```{r}
+tree1 <- fit_tree(
+  data = svidata,
+  outcome = "total_deaths_per_100k",
+  predictors = predictor_vars,
+  maxdepth = 3)
+```
+
+plot the tree:
+
+```{r}
+rpart.plot(tree1)
+```
+
+```{r}
+summary(tree1)
+```
+
+2.  A function that predicts the outcome variable using a fitted tree. The function should take as input the fitted tree and the data for which to make predictions. The function should return the predicted values.
+
+```{r}
+predict_tree <- function(tree_model, newdata) {
+  preds <- predict(tree_model, newdata)
+  return(preds)
+}
+
+tree1 <- fit_tree(
+  data = svidata,
+  outcome = "total_deaths_per_100k",
+  predictors = predictor_vars,
+  maxdepth = 3
+)
+preds1 <- predict_tree(tree1, svidata)
+head(preds1)
+```
+
+3.  A function that calculates the mean squared error of the predictions. The function should take as input the predicted values and the true values. The function should return the mean squared error.
+
+```{r}
+calc_mse <- function(y_true, y_pred) {
+  mse <- mean((y_true - y_pred)^2, na.rm = TRUE)
+  return(mse)
+}
+```
+
+Test Chunk:
+
+```{r}
+tree1 <- fit_tree(
+  data = svidata,
+  outcome = "total_deaths_per_100k",
+  predictors = predictor_vars,
+  maxdepth = 3
+)
+
+preds1 <- predict_tree(tree1, svidata)
+
+mse1 <- calc_mse(
+  y_true = svidata$total_deaths_per_100k,
+  y_pred = preds1
+)
+
+mse1
+```
+
+## 3. Use 5-fold cross-validation to calculate the mean squared error of the regression tree for maximum tree depths 1 - 10.
+
+The outcome variable is: `total_deaths_per_100k` and the predictor variables are: `EP_POV150, EP_UNEMP, EP_HBURD, EP_NOHSDP, EP_UNINSUR, EP_AGE65, EP_AGE17, EP_DISABL, EP_SNGPNT, EP_LIMENG, EP_MINRTY, EP_MUNIT, EP_MOBILE, EP_CROWD, EP_NOVEH, EP_GROUPQ, EP_NOINT`. I'm setting a seed of 21 for reproducibility.
+
+```{r}
+set.seed(21)
+  folds <- sample(rep(1:5, length.out = nrow(svidata)))
+  depths <- 1:10
+  mse_results <- numeric(length(depths))
+  
+ for (d in depths) {
+  mse_fold <- numeric(5)
+  
+  for (f in 1:5) {
+    train_data <- svidata[folds != f, ]
+    test_data  <- svidata[folds == f, ]
+    
+    tree_model <- fit_tree(
+      data = train_data,
+      outcome = "total_deaths_per_100k",
+      predictors = predictor_vars,
+      maxdepth = d
+    )
+    
+    preds <- predict_tree(tree_model, test_data)
+    
+    mse_fold[f] <- calc_mse(
+      y_true = test_data$total_deaths_per_100k,
+      y_pred = preds
+    )
+  }
+  
+  mse_results[d] <- mean(mse_fold)
+}
+
+```
+
+Create a tibble for Plotting
+
+```{r}
+mse_df <- tibble(
+  maxdepth = depths,
+  mse = mse_results)
+```
+
+The Plot:
+
+```{r}
+ggplot(mse_df, aes(x = maxdepth, y = mse)) +
+  geom_line(color = "darkcyan") +
+  geom_point(color = "magenta") +
+  theme_minimal()
+```
+
+## 4. Plot the mean squared error as a function of the maximum tree depth.
+
+```{r}
+ggplot(mse_df, aes(x = maxdepth, y = mse)) +
+  geom_line(color = "darkcyan", linewidth = 1) +
+  geom_point(color = "magenta", size = 2) +
+  labs(
+    title = "5-Fold Cross-Validation: Mean Squared Error as a fxn. of Tree Depth",
+    x = "Maximum Tree Depth",
+    y = "Cross-Validated Mean Squared Error"
+  ) +
+  theme_minimal()
+```
+
+My Analysis: These graphs show that for depths 1-3, the model is too shallow and it can’t capture relationships without high bias. Whereas, around 4 the average MSE dips, this is the point where we can find the best trade‑off between under‑ and over‑fitting. As tree depth increases beyond 6-8, the MSE rises again which indicates that the model starts memorizing noise due to high variance.
+
+##5. Which maximum tree depth would you choose based on the cross-validation results? Why?
+
+```{r}
+which.min(mse_results)
+```
+
+When we run the code above, we can see that the maximum tree depth we can choose based on the cross-validation results is 4, which aligns with what we saw in our graphs. Because the MSE at depth 4 is the smallest, a tree with this depth holds tree the most accurate guess on the unseen data among the candidates we have in the dataset.
+
+## 6. Fit a regression tree to the full data using the maximum tree depth you chose in the previous question.
+
+```{r}
+fit_tree <- function(data, outcome, predictors, maxdepth) {
+  fml <- as.formula(paste(outcome, "~", paste(predictors, collapse = "+")))
+  rpart(
+    fml,
+    data = data,
+    method = "anova",
+    control = rpart.control(cp = 0, maxdepth = maxdepth)
+  )
+}
+
+predict_tree <- function(tree_model, newdata) {
+  predict(tree_model, newdata)
+}
+
+calc_mse <- function(y_true, y_pred) {
+  mean((y_true - y_pred)^2, na.rm = TRUE)
+}
+
+optimal_depth <- 4
+full_tree <- fit_tree(
+  data       = svidata,
+  outcome    = "total_deaths_per_100k",
+  predictors = predictor_vars,
+  maxdepth   = optimal_depth
+)
+full_tree
+
+```
+
+## 7. Plot the fitted tree. Summarize the tree in words. What variables seem to be the most important predictors of the number of per-capita COVID-19 deaths?
+
+```{r}
+rpart.plot(
+  full_tree,
+  type        = 2,          # split labels on the left
+  extra       = 101,        # show fitted value + % of observations
+  fallen.leaves = TRUE,
+  main        = paste0("Regression Tree (maxdepth = ", optimal_depth, ")")
+)
+```
+My Description: The tree first splits counties on the share of households without internet access (EP_NOINT). For counties with relatively low internet‑lack (<13.35%), the next most important predictor is disability prevalence (EP_DISABL). Within low‑disability counties, the model further distinguishes between very low and moderate internet‑lack, using mobile‑home residence (EP_MOBILE) and share of youth (EP_AGE17) to arrive at leaf predictions that range from ≈208 deaths per 100k (low‑internet, low‑mobile‑home counties) up to ≈331 (low‑internet, high‑mobile‑home counties). When disability is higher, on the other hand, the tree looks at education (EP_NOHSDP). Counties with few households lacking a high‑school diploma and low internet‑lack have the lowest predicted mortality among all leaves (≈240), whereas those with higher education deficits see rates of ≈410–466 depending on the share of seniors (EP_AGE65). For the right‑hand side of the tree (high internet‑lack ≥13.35%), poverty (EP_POV150) becomes the dominant split. In relatively less‑poor counties the model again uses disability and group‑quarter residence (EP_GROUPQ) to separate a very low‑mortality group (≈ 237 deaths per 100 k) from higher‑mortality groups (≈400–462). In the most impoverished counties, education (EP_NOHSDP) and group‑quarter residence further stratify mortality, producing the worst predicted rates of ≈614 deaths per 100k in counties with extreme poverty (≥ 37.65 % below the poverty line) and low education. Overall, the tree highlights five social‑determinant variables that drive per‑capita COVID‑19 deaths: lack of internet, poverty, disability, low education, and crowded housing (group quarters or mobile homes). The predicted death rates across the 31 terminal nodes span from roughly 200 to over 600 deaths per 100k, illustrating the wide disparity in outcomes that is strongly linked to these community‑level characteristics.
+
+We can also obtain training predictions
+
+```{r}
+train_pred <- predict_tree(full_tree, svidata)
+head(train_pred)
+```
+
+Compute the training‑set MSE
+
+```{r}
+train_mse <- calc_mse(svidata$total_deaths_per_100k, train_pred)
+
+cat("Training‑set MSE (depth =", optimal_depth, "):", round(train_mse, 4), "\n")
+```
+```{r}
+imp_df <- tibble(variable = names(full_tree$variable.importance),
+                 importance = full_tree$variable.importance) %>%
+          arrange(desc(importance))
+
+print(imp_df)
+
+ggplot(imp_df, aes(x = reorder(variable, importance), y = importance)) +
+  geom_col(fill = "magenta") +
+  coord_flip() +
+  labs(title = "Variable Importance (Tree depth = 4)",
+       x = "Predictor", y = "Importance") +
+  theme_minimal()
+```
+
+EP_Noint, EP_POV150, EP_DISABL, EP_NOHSDP, and EP_MOBILE, and EP_MUNIT seem to be the most important predictors of the number of per-capita COVID-19 deaths. For each of these variables this generally aligns with what makes sense as communities with limited internet may have poorer access to public‑health information, poverty is linked to crowded housing, essential‑worker status, and comorbidities, all of which increase exposure and severity, people with disabilities often have underlying health conditions and may rely on caregivers, raising infection risk, and mobile homes and minority groups tend to live in smaller housing complexes with more members living, increasing possible spread.
+
+## 8. Plot the predicted values against the true values. How much would you trust the predictions of the regression tree? Why?
+```{r pred-vs-true, echo=TRUE, warning=FALSE, message=FALSE, fig.width=7, fig.height=6}
+optimal_depth <- 4
+full_tree <- fit_tree(
+  data       = svidata,
+  outcome    = "total_deaths_per_100k",
+  predictors = predictor_vars,
+  maxdepth   = optimal_depth
+)
+
+```
+
+Now predict on the same data
+```{r}
+preds_full <- predict_tree(full_tree, svidata)
+```
+Compute basic error metrics
+```{r}
+mse_full   <- calc_mse(svidata$total_deaths_per_100k, preds_full)
+rmse_full  <- sqrt(mse_full)
+pearson_r  <- cor(svidata$total_deaths_per_100k, preds_full, use = "complete.obs")
+r_squared  <- pearson_r^2
+
+cat("MSE  :", round(mse_full, 2),  "\n")
+cat("RMSE :", round(rmse_full, 2), "\n")
+cat("Pearson r :", round(pearson_r, 3), "\n")
+cat("R²   :", round(r_squared, 3), "\n")
+```
+Finally, plot predicted vs. true values
+```{r}
+library(ggplot2)
+
+ggplot(data = svidata, aes(x = total_deaths_per_100k, y = preds_full)) +
+  geom_point(alpha = 0.6, colour = "pink", size = 2) +          # each county
+  geom_abline(slope = 1, intercept = 0, color = "darkblue", linetype = "dashed") + # perfect line
+  geom_smooth(method = "loess", color = "firebrick", se = FALSE, size = 1) +      # low‑ess trend
+  labs(
+    title = "Predicted vs. True COVID‑19 Deaths per 100 k (Regression Tree, depth = 4)",
+    subtitle = paste0("RMSE = ", round(rmse_full,2),
+                    ",  R² = ", round(r_squared,3)),
+    x = "Observed total_deaths_per_100k",
+    y = "Predicted total_deaths_per_100k"
+  ) +
+  theme_minimal(base_size = 13)
+```
+My Explanation: The regression tree accounts for about 30% of the variance in per-capita COVID-19 deaths (R² ≈ 0.30) with an RMSE of approximately X deaths per 100k. It slightly underpredicts for the highest-mortality counties (the loess curve dips below the line beyond Y). Since it was trained and tested on the same data, its error metrics are optimistic; cross-validation indicated a higher MSE (≈ Z), suggesting worse out-of-sample performance. With a tree depth of 4, some variation remains unexplained—key predictors include lack of internet, poverty, disability, low education, and crowded housing, but important factors like age, vaccination, and policies are absent. The tree offers a useful, interpretable baseline for ranking risk levels but should be used cautiously for precise point predictions, ideally complemented by advanced models and external validation for policy decisions.
