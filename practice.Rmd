@@ -1,0 +1,111 @@
+---
+title: "RChandraHW04"
+author: "RChandra"
+date: "2025-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(caret)
+```
+
+Name: Raagini Chandra
+
+# Preparation
+
+## 1. Load the data:
+
+```{r}
+svidata <- read_csv("Processed Data/svi_covid.csv")
+predictor_vars <- c("EP_POV150", "EP_UNEMP", "EP_HBURD", "EP_NOHSDP", "EP_UNINSUR",
+  "EP_AGE65", "EP_AGE17", "EP_DISABL", "EP_SNGPNT", "EP_LIMENG",
+  "EP_MINRTY", "EP_MUNIT", "EP_MOBILE", "EP_CROWD", "EP_NOVEH",
+  "EP_GROUPQ", "EP_NOINT")
+```
+
+## 2. Write the following functions:
+
+1.  A function that fits a regression tree to data. The function should take as input the data, the outcome variable, the predictor variables, and the maximum depth of the tree. The function should return the fitted tree. *Note: Many packages have functions that penalize the complexity of the tree to avoid over-fitting. You should make sure that the function you write does not use any penalization for the complexity of the tree.*
+
+```{r}
+fit_tree <- function(data, outcome, predictors, maxdepth) {
+   formula <- as.formula(paste(outcome, "~", paste(predictors, collapse = "+")))
+ tree_model <- rpart(
+    formula,
+    data = data,                   
+    method = "anova",
+    control = rpart.control(cp = 0, 
+                            maxdepth = maxdepth)
+  )
+
+  return(tree_model)
+}
+```
+
+Test the model:
+
+```{r}
+tree1 <- fit_tree(
+  data = svidata,
+  outcome = "total_deaths_per_100k",
+  predictors = predictor_vars,
+  maxdepth = 3)
+```
+
+plot the tree:
+
+```{r}
+rpart.plot(tree1)
+```
+
+```{r}
+summary(tree1)
+```
+
+2.  A function that predicts the outcome variable using a fitted tree. The function should take as input the fitted tree and the data for which to make predictions. The function should return the predicted values.
+
+```{r}
+predict_tree <- function(tree_model, newdata) {
+  preds <- predict(tree_model, newdata)
+  return(preds)
+}
+
+tree1 <- fit_tree(
+  data = svidata,
+  outcome = "total_deaths_per_100k",
+  predictors = predictor_vars,
+  maxdepth = 3
+)
+preds1 <- predict_tree(tree1, svidata)
+head(preds1)
+```
+3. A function that calculates the mean squared error of the predictions. The function should take as input the predicted values and the true values. The function should return the mean squared error.
+```{r}
+calc_mse <- function(y_true, y_pred) {
+  mse <- mean((y_true - y_pred)^2, na.rm = TRUE)
+  return(mse)
+}
+```
+Test Chunk:
+```{r}
+tree1 <- fit_tree(
+  data = svidata,
+  outcome = "total_deaths_per_100k",
+  predictors = predictor_vars,
+  maxdepth = 3
+)
+
+preds1 <- predict_tree(tree1, svidata)
+
+mse1 <- calc_mse(
+  y_true = svidata$total_deaths_per_100k,
+  y_pred = preds1
+)
+
+mse1
+```
+
